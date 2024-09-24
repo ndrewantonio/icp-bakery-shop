@@ -1,21 +1,28 @@
-type Error = variant { NotFound : record { msg : text } };
-type Message = record {
+type Category = variant { Cake; Cookies; Bakery };
+type Error = variant {
+  NotFound : record { msg : text };
+  InvalidOperation : record { msg : text };
+};
+type Product = record {
   id : nat64;
-  title : text;
   updated_at : opt nat64;
-  body : text;
+  name : text;
   created_at : nat64;
-  attachment_url : text;
+  quantity : nat32;
+  category : Category;
 };
-type MessagePayload = record {
-  title : text;
-  body : text;
-  attachment_url : text;
+type ProductPayload = record {
+  name : text;
+  quantity : nat32;
+  category : Category;
 };
-type Result = variant { Ok : Message; Err : Error };
+type Result = variant { Ok : Product; Err : Error };
+type StockPayload = record { amount : nat32 };
 service : {
-  add_message : (MessagePayload) -> (opt Message);
-  delete_message : (nat64) -> (Result);
-  get_message : (nat64) -> (Result) query;
-  update_message : (nat64, MessagePayload) -> (Result);
+  add_product : (ProductPayload) -> (opt Product);
+  add_quantity : (nat64, StockPayload) -> (Result);
+  get_product : (nat64) -> (Result) query;
+  offload_quantity : (nat64, StockPayload) -> (Result);
+  remove_product : (nat64) -> (Result);
+  update_product : (nat64, ProductPayload) -> (Result);
 }
