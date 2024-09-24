@@ -86,6 +86,16 @@ fn get_product(id: u64) -> Result<Product, Error> {
     }
 }
 
+#[ic_cdk::query]
+fn get_stock(id: u64) -> Result<u32, Error> {
+    match _get_product(&id) {
+        Some(product) => Ok(product.quantity),
+        None => Err(Error::NotFound {
+            msg: format!("a product with id={} not found", id),
+        }),
+    }
+}
+
 fn do_insert(product: &Product) {
     STORAGE.with(|service| service.borrow_mut().insert(product.id, product.clone()));
 }

@@ -17,11 +17,13 @@ type ProductPayload = record {
   category : Category;
 };
 type Result = variant { Ok : Product; Err : Error };
+type Result_1 = variant { Ok : nat32; Err : Error };
 type StockPayload = record { amount : nat32 };
 service : {
   add_product : (ProductPayload) -> (opt Product);
   add_quantity : (nat64, StockPayload) -> (Result);
   get_product : (nat64) -> (Result) query;
+  get_stock : (nat64) -> (Result_1) query;
   offload_quantity : (nat64, StockPayload) -> (Result);
   remove_product : (nat64) -> (Result);
   update_product : (nat64, ProductPayload) -> (Result);
