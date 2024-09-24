@@ -1,20 +1,38 @@
-# icp_rust_message_board_contract
+# ICP Bakery Shop Smart Contract (Rust)
+
+This smart contract is built using Rust to manage the stock of ICP Bakery Shop. It allows for handling the inventory of bakery items, such as bread, cakes, and so on, and can be used to manage items.
+
+### Features
+
+- Add new bakery items to the inventory
+- Update stock levels for bakery items
+- Remove items from stock
+- Retrieve the current stock for bakery items
+- Query the stock of specific items
 
 ### Requirements
-* rustc 1.64 or higher
+
+- rustc 1.64 or higher
+
 ```bash
 $ curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
 $ source "$HOME/.cargo/env"
 ```
-* rust wasm32-unknown-unknown target
+
+- rust wasm32-unknown-unknown target
+
 ```bash
 $ rustup target add wasm32-unknown-unknown
 ```
-* candid-extractor
+
+- candid-extractor
+
 ```bash
 $ cargo install candid-extractor
 ```
-* install `dfx`
+
+- install `dfx`
+
 ```bash
 $ DFX_VERSION=0.15.0 sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
 $ echo 'export PATH="$PATH:$HOME/bin"' >> "$HOME/.bashrc"
@@ -33,6 +51,7 @@ $ dfx canister --help
 ## Update dependencies
 
 update the `dependencies` block in `/src/{canister_name}/Cargo.toml`:
+
 ```
 [dependencies]
 candid = "0.9.9"
@@ -45,11 +64,13 @@ ic-stable-structures = { git = "https://github.com/lwshang/stable-structures.git
 ## did autogenerate
 
 Add this script to the root directory of the project:
+
 ```
 https://github.com/buildwithjuno/juno/blob/main/scripts/did.sh
 ```
 
 Update line 16 with the name of your canister:
+
 ```
 https://github.com/buildwithjuno/juno/blob/main/scripts/did.sh#L16
 ```
@@ -61,6 +82,7 @@ You should run this script each time you modify/add/remove exported functions of
 Otherwise, you'll have to modify the candid file manually.
 
 Also, you can add package json with this content:
+
 ```
 {
     "scripts": {
