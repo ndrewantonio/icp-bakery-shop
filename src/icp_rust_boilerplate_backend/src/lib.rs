@@ -27,7 +27,7 @@ struct Product {
     updated_at: Option<u64>,
 }
 
-// a trait that must be implemented for a struct that is stored in a stable struct
+// Implementing Storable for Product to convert to/from bytes for storage
 impl Storable for Product {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
@@ -38,9 +38,9 @@ impl Storable for Product {
     }
 }
 
-// another trait that must be implemented for a struct that is stored in a stable struct
+// Implementing BoundedStorable to define size limitations for Product storage
 impl BoundedStorable for Product {
-    const MAX_SIZE: u32 = 1024;
+    const MAX_SIZE: u32 = 1024; // Maximum size for a Product in bytes
     const IS_FIXED_SIZE: bool = false;
 }
 
@@ -60,55 +60,92 @@ thread_local! {
     ));
 }
 
+// Product payload struct used to create or update a product
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct ProductPayload {
     name: String,
     quantity: u32,
-    category: Category
+    category: Category,
 }
 
+// Payload for adding or removing stock
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct StockPayload {
     amount: u32,
 }
 
+// Function to validate ProductPayload inputs
+fn validate_product_payload(payload: &ProductPayload) -> Result<(), Error> {
+    if payload.name.trim().is_empty() {
+        return Err(Error::InvalidOperation {
+            msg: "Product name cannot be empty.".to_string(),
+        });
+    }
+    if payload.quantity == 0 {
+        return Err(Error::InvalidOperation {
+            msg: "Product quantity must be greater than zero.".to_string(),
+        });
+    }
+    Ok(())
+}
+
+// Function to validate StockPayload inputs
+fn validate_stock_payload(payload: &StockPayload) -> Result<(), Error> {
+    if payload.amount == 0 {
+        return Err(Error::InvalidOperation {
+            msg: "Stock amount must be greater than zero.".to_string(),
+        });
+    }
+    Ok(())
+}
+
+// Helper function to retrieve a product by its ID
 fn _get_product(id: &u64) -> Option<Product> {
     STORAGE.with(|service| service.borrow().get(id))
 }
 
+// Query function to retrieve a product by ID
 #[ic_cdk::query]
 fn get_product(id: u64) -> Result<Product, Error> {
     match _get_product(&id) {
         Some(product) => Ok(product),
         None => Err(Error::NotFound {
-            msg: format!("a product with id={} not found", id),
+            msg: format!("A product with id={} was not found", id),
         }),
     }
 }
 
+// Query function to get the current stock of a product by ID
 #[ic_cdk::query]
 fn get_stock(id: u64) -> Result<u32, Error> {
     match _get_product(&id) {
         Some(product) => Ok(product.quantity),
         None => Err(Error::NotFound {
-            msg: format!("a product with id={} not found", id),
+            msg: format!("A product with id={} was not found", id),
         }),
     }
 }
 
+// Function to insert a product into the stable storage
 fn do_insert(product: &Product) {
     STORAGE.with(|service| service.borrow_mut().insert(product.id, product.clone()));
 }
 
+// Function to add a new product to the storage
 #[ic_cdk::update]
-fn add_product(product: ProductPayload) -> Option<Product> {
+fn add_product(product: ProductPayload) -> Result<Product, Error> {
+    // Validate payload before processing
+    validate_product_payload(&product)?;
+
+    // Generate a unique ID for the product
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
             counter.borrow_mut().set(current_value + 1)
         })
-        .expect("cannot increment id counter");
-        
+        .expect("Cannot increment id counter");
+    
+    // Create a new Product instance
     let item = Product {
         id,
         name: product.name,
@@ -117,12 +154,19 @@ fn add_product(product: ProductPayload) -> Option<Product> {
         created_at: time(),
         updated_at: None,
     };
+
+    // Insert the new product into storage
     do_insert(&item);
-    Some(item)
+    Ok(item)
 }
 
+// Function to update an existing product's details
 #[ic_cdk::update]
 fn update_product(id: u64, payload: ProductPayload) -> Result<Product, Error> {
+    // Validate payload before processing
+    validate_product_payload(&payload)?;
+
+    // Update the product if it exists in storage
     match STORAGE.with(|service| service.borrow().get(&id)) {
         Some(mut product) => {
             product.name = payload.name;
@@ -133,16 +177,17 @@ fn update_product(id: u64, payload: ProductPayload) -> Result<Product, Error> {
             Ok(product)
         }
         None => Err(Error::NotFound {
-            msg: format!(
-                "couldn't update a product with id={}. message not found",
-                id
-            ),
+            msg: format!("Couldn't update a product with id={}. Product not found", id),
         }),
     }
 }
 
+// Function to add stock to a product's quantity
 #[ic_cdk::update]
 fn add_quantity(id: u64, payload: StockPayload) -> Result<Product, Error> {
+    // Validate the stock payload
+    validate_stock_payload(&payload)?;
+
     match STORAGE.with(|service| service.borrow().get(&id)) {
         Some(mut product) => {
             product.quantity += payload.amount;
@@ -151,67 +196,59 @@ fn add_quantity(id: u64, payload: StockPayload) -> Result<Product, Error> {
             Ok(product)
         }
         None => Err(Error::NotFound {
-            msg: format!(
-                "couldn't add amount a product with id={}. message not found",
-                id
-            ),
+            msg: format!("Couldn't add quantity to product with id={}. Product not found", id),
         }),
     }
 }
 
+// Function to remove stock from a product's quantity
 #[ic_cdk::update]
 fn offload_quantity(id: u64, payload: StockPayload) -> Result<Product, Error> {
+    // Validate the stock payload
+    validate_stock_payload(&payload)?;
+
     match STORAGE.with(|service| service.borrow().get(&id)) {
         Some(mut product) => {
             if product.quantity == 0 {
                 return Err(Error::InvalidOperation {
-                    msg: format!(
-                        "Product with id={} cannot be offloaded because the quantity is 0",
-                        id
-                    ),
+                    msg: format!("Product with id={} cannot be offloaded because the quantity is 0", id),
                 });
             } else if payload.amount > product.quantity {
                 return Err(Error::InvalidOperation {
                     msg: format!(
-                        "Cannot offload more than the available quantity. Available: {}, Trying to offload: {}",
+                        "Cannot offload more than available quantity. Available: {}, Trying to offload: {}",
                         product.quantity, payload.amount
                     ),
                 });
             }
-
             product.quantity -= payload.amount;
             product.updated_at = Some(time());
             do_insert(&product);
             Ok(product)
         }
         None => Err(Error::NotFound {
-            msg: format!(
-                "couldn't offload a product with id={}. message not found",
-                id
-            ),
+            msg: format!("Couldn't offload a product with id={}. Product not found", id),
         }),
     }
 }
 
-
+// Function to remove a product from storage
 #[ic_cdk::update]
 fn remove_product(id: u64) -> Result<Product, Error> {
     match STORAGE.with(|service| service.borrow_mut().remove(&id)) {
         Some(product) => Ok(product),
         None => Err(Error::NotFound {
-            msg: format!(
-                "couldn't delete a product with id={}. message not found.",
-                id
-            ),
+            msg: format!("Couldn't delete a product with id={}. Product not found", id),
         }),
     }
 }
 
+// Custom error handling enum
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
     InvalidOperation { msg: String },
 }
 
-// need this to generate candid
+// Export candid interface
 ic_cdk::export_candid!();
